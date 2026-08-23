@@ -23,7 +23,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 UP_MODES = ("transpose", "bilinear", "unpool")
-SKIP_MODES = ("full", "half", "none")
+SKIP_MODES = ("full", "half", "half_shallow", "none")
 
 
 class DoubleConv(nn.Module):
@@ -125,11 +125,19 @@ class UNet(nn.Module):
                         Dat 32 neu Colab het VRAM (~7.8M tham so).
         depth         : so tang downsample. 4 = ban goc.
         up_mode       : "transpose" | "bilinear" | "unpool".
-        skip_mode     : "full" giu du skip;
-                        "half" chi giu skip o cac tang SAU (do phan giai thap),
-                               bo cac tang NONG (do phan giai cao) - dung de
-                               chung minh vai tro cua thong tin do phan giai cao;
-                        "none" bo hoan toan skip (thanh encoder-decoder thuan).
+        skip_mode     : "full"         giu du skip;
+                        "half"         giu skip o cac tang SAU (do phan giai
+                                       thap), bo cac tang NONG -> decoder chi
+                                       nhan them thong tin NGU CANH;
+                        "half_shallow" nguoc lai: giu tang NONG, bo tang SAU
+                                       -> decoder chi nhan them thong tin DO
+                                       PHAN GIAI CAO;
+                        "none"         bo hoan toan skip.
+
+                        Can CA HAI bien the "half" thi moi tach bach duoc vai
+                        tro cua thong tin do phan giai cao. Chi co mot bien the
+                        thi khong biet ton that den tu viec mat tang nong hay
+                        tu viec tang sau du bu.
     """
 
     def __init__(
@@ -187,7 +195,13 @@ class UNet(nn.Module):
             return [True] * depth
         if skip_mode == "none":
             return [False] * depth
-        keep_from = depth - depth // 2  # depth=4 -> [F, F, T, T]
+        if skip_mode == "half_shallow":
+            # depth=4 -> [T, T, F, F]: chi giu thong tin do phan giai cao
+            return [level < depth // 2 for level in range(depth)]
+        # "half": depth=4 -> [F, F, T, T]: chi giu thong tin ngu canh.
+        # Giu nguyen ten "half" (khong doi thanh "half_deep") vi run_id la hash
+        # cua Config: doi ten se lam moi luot da chay khong con khop checkpoint.
+        keep_from = depth - depth // 2
         return [level >= keep_from for level in range(depth)]
 
     def _init_weights(self) -> None:

@@ -21,6 +21,11 @@ class Config:
     split_dir: str = "splits"
     image_size: int = 256
     batch_size: int = 8
+    # CẢNH BÁO: num_workers bị loại khỏi hash run_id (xem thuộc tính run_id bên
+    # dưới) nhưng nó CÓ ảnh hưởng tới kết quả, vì seed_worker gieo seed theo chỉ
+    # số worker nên đổi số worker là đổi trình tự tăng cường dữ liệu. Đo được
+    # trên Kvasir-SEG: cùng seed, num_workers 2 so với 8 lệch 0.0030 Dice.
+    # Giữ NGUYÊN một giá trị cho toàn bộ thí nghiệm.
     num_workers: int = 2
     augment: bool = True
 

@@ -25,6 +25,21 @@ class RunLogger:
         row = {"datetime": datetime.now().isoformat(timespec="seconds"), **record}
         existing = self._read_header()
 
+        # Cảnh báo sớm nếu run_id đã có: hai dòng cùng run_id nhưng khác kết quả
+        # là dấu hiệu có biến ẩn ngoài hash (num_workers là thủ phạm hay gặp,
+        # vì nó đổi trình tự tăng cường dữ liệu). Chúng cũng dùng chung một
+        # đường dẫn checkpoint, nên lượt sau ghi đè lượt trước và một trong hai
+        # dòng CSV không còn khớp file nào trên đĩa.
+        rid = row.get("run_id")
+        if rid:
+            old = [r for r in self.read_all() if r.get("run_id") == rid]
+            if old:
+                prev = old[-1].get("test_dice", "?")
+                now = row.get("test_dice", "?")
+                print(f"[CẢNH BÁO] run_id {rid} đã có trong log "
+                      f"(test_dice cũ {prev}, mới {now}). Checkpoint đã bị ghi đè. "
+                      f"Chạy merge_logs() để khử trùng trước khi lập bảng.")
+
         if existing is None:
             with self.path.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=list(row))

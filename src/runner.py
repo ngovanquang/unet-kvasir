@@ -64,13 +64,24 @@ def run_experiment(cfg: Config, verbose: bool = True,
     """Chạy một cấu hình. Trả về dict gồm history và toàn bộ chỉ số test."""
     logger = RunLogger(cfg.log_csv)
 
-    if skip_if_logged and any(r.get("run_id") == cfg.run_id for r in logger.read_all()):
-        if verbose:
-            print(f"[bỏ qua] {cfg.run_id} đã có trong log.")
-        # Vẫn trả về history đọc từ đĩa, để vẽ lại đường cong không cần train lại.
-        return {"run_id": cfg.run_id, "loss_name": cfg.loss_name,
-                "up_mode": cfg.up_mode, "skip_mode": cfg.skip_mode,
-                "skipped": True, "history": load_history(cfg)}
+    if skip_if_logged:
+        logged = [r for r in logger.read_all() if r.get("run_id") == cfg.run_id]
+        if logged:
+            if verbose:
+                print(f"[bỏ qua] {cfg.run_id} đã có trong log.")
+            # Trả về dict CÙNG HÌNH DẠNG với nhánh chạy đầy đủ: đủ mọi cột từ
+            # log, có history đọc từ đĩa, và có model đã nạp checkpoint. Nếu
+            # thiếu khoá "model" thì mọi nơi gọi đều phải tự phòng vệ.
+            result = {**dict(logged[-1]), "history": load_history(cfg),
+                      "skipped": True, "model": None}
+            if cfg.ckpt_path.exists():
+                device = get_device()
+                result["model"] = load_best(build_model(cfg, device),
+                                            cfg.ckpt_path, device)
+            elif verbose:
+                print(f"[cảnh báo] không thấy {cfg.ckpt_path}; "
+                      f"result['model'] = None")
+            return result
 
     set_seed(cfg.seed)
     device = get_device()

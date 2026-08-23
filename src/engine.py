@@ -119,6 +119,39 @@ def fit(model: nn.Module, train_loader: DataLoader, val_loader: DataLoader,
     }
 
 
+@torch.no_grad()
+def predict_tta(model: nn.Module, images: torch.Tensor,
+                device: torch.device) -> torch.Tensor:
+    """Trung bình xác suất qua 4 phép lật (gốc, ngang, dọc, cả hai).
+
+    Test-time augmentation: KHÔNG cần huấn luyện lại, chỉ suy luận thêm 3 lần
+    trên cùng checkpoint. Phép lật là lựa chọn an toàn cho ảnh nội soi vì ảnh
+    không có chiều ưu tiên — cùng lý do dùng chúng làm augmentation lúc train.
+
+    Trả về XÁC SUẤT (đã qua sigmoid), khác với model() vốn trả về logits.
+    """
+    model.eval()
+    x = images.to(device, non_blocking=True)
+    acc = torch.sigmoid(model(x))
+    for dims in ([-1], [-2], [-1, -2]):
+        acc = acc + torch.sigmoid(model(torch.flip(x, dims))).flip(dims)
+    return acc / 4.0
+
+
+@torch.no_grad()
+def evaluate_tta(model: nn.Module, loader: DataLoader, device: torch.device,
+                 threshold: float = 0.5) -> MetricResult:
+    """Như evaluate() nhưng dùng TTA. Không trả về loss vì TTA cho xác suất
+    trung bình, đưa ngược về logits để tính loss là không có ý nghĩa."""
+    metrics = SegMetrics(threshold)
+    for images, masks in loader:
+        probs = predict_tta(model, images, device)
+        # SegMetrics nhận logits, nên đưa xác suất về logit tương đương
+        logits = torch.logit(probs.clamp(1e-6, 1 - 1e-6))
+        metrics.update(logits, masks.to(device, non_blocking=True))
+    return metrics.compute()
+
+
 def load_best(model: nn.Module, ckpt_path: str | Path,
               device: torch.device) -> nn.Module:
     state = torch.load(ckpt_path, map_location=device, weights_only=True)
