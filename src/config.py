@@ -34,7 +34,11 @@ class Config:
 
     # --- Hàm mất mát ---
     loss_name: str = "bce_dice"  # xem src/losses.py
-    focal_alpha: float = 0.25
+    # 0.75 chứ KHÔNG phải 0.25. alpha là trọng số của lớp DƯƠNG (pixel polyp).
+    # Giá trị 0.25 là mặc định của RetinaNet cho bài toán phát hiện đối tượng;
+    # bê sang phân đoạn polyp thì nó giảm trọng số lớp vốn đã hiếm xuống 3 lần
+    # và mô hình sụp về nghiệm "dự đoán toàn bộ là nền" (Dice ~ 0.08).
+    focal_alpha: float = 0.75
     focal_gamma: float = 2.0
     tversky_alpha: float = 0.3   # phạt false positive
     tversky_beta: float = 0.7    # phạt false negative (bỏ sót polyp) nặng hơn
@@ -42,12 +46,12 @@ class Config:
     pos_weight: Optional[float] = None  # None = tự tính từ tập train
 
     # --- Huấn luyện ---
-    epochs: int = 40
+    epochs: int = 120       # 40 là chưa đủ: val Dice vẫn đang tăng ở epoch 40
     lr: float = 1e-3
     weight_decay: float = 1e-5
     seed: int = 42
     amp: bool = True
-    early_stop_patience: int = 10
+    early_stop_patience: int = 20   # nới ra vì lịch trình dài hơn và BCE hay sụp rồi hồi
     threshold: float = 0.5       # ngưỡng nhị phân hoá CỐ ĐỊNH cho mọi cấu hình
 
     # --- Đầu ra ---

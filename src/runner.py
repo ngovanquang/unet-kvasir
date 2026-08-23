@@ -11,7 +11,9 @@ checkpoint tốt nhất, đánh giá trên tập test, ghi một dòng vào logs
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+import json
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import torch
 
@@ -22,6 +24,26 @@ from .logger import RunLogger
 from .losses import build_loss
 from .models import UNet
 from .utils import count_parameters, get_device, set_seed
+
+
+def history_path(cfg: Config) -> Path:
+    return Path(cfg.ckpt_dir) / f"{cfg.run_id}_history.json"
+
+
+def save_history(cfg: Config, history: List[Dict]) -> None:
+    path = history_path(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(history, indent=1), encoding="utf-8")
+
+
+def load_history(cfg: Config) -> List[Dict]:
+    """Đọc lại đường cong của một lượt đã chạy.
+
+    Nhờ hàm này mà mất kết nối Colab không làm mất đường cong: chỉ cần
+    checkpoint và file history còn trên Drive là vẽ lại được.
+    """
+    path = history_path(cfg)
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
 
 
 def build_model(cfg: Config, device: Optional[torch.device] = None) -> UNet:
@@ -45,7 +67,10 @@ def run_experiment(cfg: Config, verbose: bool = True,
     if skip_if_logged and any(r.get("run_id") == cfg.run_id for r in logger.read_all()):
         if verbose:
             print(f"[bỏ qua] {cfg.run_id} đã có trong log.")
-        return {"run_id": cfg.run_id, "skipped": True}
+        # Vẫn trả về history đọc từ đĩa, để vẽ lại đường cong không cần train lại.
+        return {"run_id": cfg.run_id, "loss_name": cfg.loss_name,
+                "up_mode": cfg.up_mode, "skip_mode": cfg.skip_mode,
+                "skipped": True, "history": load_history(cfg)}
 
     set_seed(cfg.seed)
     device = get_device()
@@ -91,6 +116,7 @@ def run_experiment(cfg: Config, verbose: bool = True,
         "ckpt": str(cfg.ckpt_path),
     }
     logger.append(record)
+    save_history(cfg, train_out["history"])
 
     if verbose:
         print(f"TEST  Dice {test_metrics.dice:.4f} | IoU {test_metrics.iou:.4f} | "

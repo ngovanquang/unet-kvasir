@@ -8,7 +8,7 @@ from .logger import RunLogger
 from .losses import LOSS_NAMES, build_loss
 from .metrics import SegMetrics, dice_per_image
 from .models import SKIP_MODES, UP_MODES, UNet, count_parameters
-from .runner import build_model, run_experiment, run_sweep
+from .runner import build_model, load_history, run_experiment, run_sweep
 from .transforms import SegTransform, denormalize
 from .utils import get_device, set_seed
 
@@ -19,6 +19,6 @@ __all__ = [
     "foreground_ratio", "pos_weight_from_ratio",
     "LOSS_NAMES", "build_loss", "SegMetrics", "dice_per_image",
     "fit", "evaluate", "load_best", "RunLogger",
-    "build_model", "run_experiment", "run_sweep",
+    "build_model", "run_experiment", "run_sweep", "load_history",
     "set_seed", "get_device",
 ]

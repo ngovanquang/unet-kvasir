@@ -63,3 +63,33 @@ class RunLogger:
         with self.path.open(newline="", encoding="utf-8") as f:
             header = next(csv.reader(f), None)
         return header
+
+
+def merge_logs(paths, out_path: str | Path = "logs/runs.csv") -> int:
+    """Gộp nhiều runs.csv (từ các tài khoản Colab khác nhau) thành một.
+
+    Khử trùng lặp theo run_id, giữ bản ghi mới nhất. Trả về số dòng cuối cùng.
+    """
+    seen: Dict[str, Dict[str, Any]] = {}
+    fieldnames: List[str] = []
+    for path in paths:
+        path = Path(path)
+        if not path.exists():
+            print(f"[bỏ qua] không thấy {path}")
+            continue
+        with path.open(newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                for key in row:
+                    if key not in fieldnames:
+                        fieldnames.append(key)
+                run_id = row.get("run_id", "")
+                if run_id not in seen or row.get("datetime", "") > seen[run_id].get("datetime", ""):
+                    seen[run_id] = row
+
+    out_path = Path(out_path)
+    ensure_dir(out_path.parent)
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
+        writer.writeheader()
+        writer.writerows(seen.values())
+    return len(seen)
